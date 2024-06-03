@@ -1,0 +1,15 @@
+{
+  "name": "sample-rules",
+  "version": "1.0.0",
+  "description": "Sample rules for testing",
+  "authors": ["Your Name"],
+  "endpoints": [
+    {
+      "uri": "/api/v1/rules",
+      "response": {
+        "status_code": 200,
+        "body": "{\"data\":[{\"RuleId\":\"24209907-e000-4232-8f83-6e747fbfc755\",\"Description\":\"Daily Amount Threshold Monitoring\",\"OrgId\":\"1a75216f-bfae-41e5-9f47-44a1e9e5a92a\",\"TeamId\":\"t1\",\"Definitions\":{\"Source\":\"transaction_payload\",\"Where\":[{\"Field\":\"transaction.amount\",\"Operator\":\">=\",\"Value\":\"amount_threshold\"}],\"VariableValues\":{\"amount_threshold\":{\"type\":\"number\",\"value\":100000}}}},{\"RuleId\":\"24209907-e000-4232-8f83-6e747fbfc758\",\"Description\":\"Transaction Count Velocity Monitoring\",\"OrgId\":\"1a75216f-bfae-41e5-9f47-44a1e9e5a92a\",\"TeamId\":\"t1\",\"Definitions\":{\"Source\":\"transaction_data\",\"Select\":[{\"Operation\":\"COUNT\",\"Field\":\"txnId\",\"Operator\":\">\",\"Value\":\"transaction_count_threshold\"}],\"Where\":[{\"Field\":\"merchantId\",\"Operator\":\"=\",\"Value\":\"transaction.merchantId\"}],\"VariableValues\":{\"transaction_count_threshold\":{\"type\":\"number\",\"value\":25}},\"TimeDuration\":{\"Type\":\"CUSTOM\",\"Custom\":{\"From\":\"2023-06-01 00:00:00\",\"Till\":\"2023-06-01 06:00:00\"}}}},{\"RuleId\":\"24209907-e000-4232-8f83-6e747fbfc756\",\"Description\":\"Transaction Count Velocity Monitoring\",\"OrgId\":\"1a75216f-bfae-41e5-9f47-44a1e9e5a92a\",\"TeamId\":\"t1\",\"Definitions\":{\"Source\":\"transaction_data\",\"Select\":[{\"Operation\":\"COUNT\",\"Field\":\"txnId\",\"Operator\":\">\",\"Value\":\"transaction_count_threshold\"}],\"VariableValues\":{\"transaction_count_threshold\":15},\"TimeDuration\":{\"Type\":\"HISTORICAL\",\"Last\":24,\"Granularity\":\"hours\"}}},{\"RuleId\":\"24209907-e000-4232-8f83-6e747fbfc759\",\"Description\":\"Negative Check for Blacklisted Vendors\",\"OrgId\":\"1a75216f-bfae-41e5-9f47-44a1e9e5a92a\",\"TeamId\":\"t1\",\"Definitions\":{\"Source\":\"datasources\",\"Select\":[{\"Operation\":\"COUNT\",\"Field\":\"value\",\"Operator\":\">\",\"Value\":\"1\"}],\"Where\":[{\"Field\":\"orgId\",\"Operator\":\"=\",\"Value\":\"transaction.orgId\"},{\"Field\":\"header_name\",\"Operator\":\"=\",\"Value\":\"blacklisted_merchant_ids\"},{\"Field\":\"value\",\"Operator\":\"=\",\"Value\":\"transaction.merchantId\"}]}}]}"
+      }
+    }
+  ]
+}
