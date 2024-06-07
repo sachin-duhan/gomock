@@ -57,5 +57,3 @@ Simply run on project root:
 ```bash
 go test ./test/...
 ```
-
-by analog-alex (Miguel Alexandre) @2022
