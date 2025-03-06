@@ -9,34 +9,33 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Port           string
 	JSONFolderPath string
+	Port           string
 }
 
-// LoadConfig loads the application configuration from environment variables
-func LoadConfig() *Config {
-	// Load .env file
-	err := godotenv.Load()
-	if err != nil {
+// LoadConfig loads configuration from environment variables
+func LoadConfig() (*Config, error) {
+	// Try to load .env file
+	if err := godotenv.Load(); err != nil {
 		log.Println("Warning: Error loading .env file, using default values")
 	}
 
-	// Get folder path from environment variable
-	folderPath := os.Getenv("JSON_FOLDER_PATH")
-	if folderPath == "" {
-		folderPath = "./endpoints" // Default value
-		log.Printf("JSON_FOLDER_PATH not set, using default: %s", folderPath)
+	// Get JSON folder path from environment variable or use default
+	jsonFolderPath := os.Getenv("JSON_FOLDER_PATH")
+	if jsonFolderPath == "" {
+		jsonFolderPath = "./endpoints"
+		log.Printf("JSON_FOLDER_PATH not set, using default: %s", jsonFolderPath)
 	}
 
-	// Get server port from environment variable or use default
+	// Get port from environment variable or use default
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080" // Default value
+		port = "8080"
 		log.Printf("PORT not set, using default: %s", port)
 	}
 
 	return &Config{
+		JSONFolderPath: jsonFolderPath,
 		Port:           port,
-		JSONFolderPath: folderPath,
-	}
+	}, nil
 }

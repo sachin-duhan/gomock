@@ -6,41 +6,45 @@ import (
 )
 
 func TestLoadConfig(t *testing.T) {
-	// Save original environment variables
-	originalPort := os.Getenv("PORT")
-	originalJSONFolderPath := os.Getenv("JSON_FOLDER_PATH")
+	// Test with environment variables set
+	t.Run("With environment variables", func(t *testing.T) {
+		// Set environment variables
+		os.Setenv("JSON_FOLDER_PATH", "/test/path")
+		os.Setenv("PORT", "3000")
+		defer func() {
+			os.Unsetenv("JSON_FOLDER_PATH")
+			os.Unsetenv("PORT")
+		}()
 
-	// Restore environment variables after the test
-	defer func() {
-		os.Setenv("PORT", originalPort)
-		os.Setenv("JSON_FOLDER_PATH", originalJSONFolderPath)
-	}()
+		// Load config
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("LoadConfig failed: %v", err)
+		}
 
-	// Test case 1: Default values when environment variables are not set
-	os.Unsetenv("PORT")
-	os.Unsetenv("JSON_FOLDER_PATH")
+		// Check values
+		if cfg.JSONFolderPath != "/test/path" {
+			t.Errorf("Expected JSONFolderPath to be /test/path, got %s", cfg.JSONFolderPath)
+		}
+		if cfg.Port != "3000" {
+			t.Errorf("Expected Port to be 3000, got %s", cfg.Port)
+		}
+	})
 
-	config := LoadConfig()
+	// Test with default values
+	t.Run("With default values", func(t *testing.T) {
+		// Load config without environment variables
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("LoadConfig failed: %v", err)
+		}
 
-	if config.Port != "8080" {
-		t.Errorf("Expected default port 8080, got %s", config.Port)
-	}
-
-	if config.JSONFolderPath != "./endpoints" {
-		t.Errorf("Expected default JSON folder path ./endpoints, got %s", config.JSONFolderPath)
-	}
-
-	// Test case 2: Custom values from environment variables
-	os.Setenv("PORT", "9090")
-	os.Setenv("JSON_FOLDER_PATH", "./custom-endpoints")
-
-	config = LoadConfig()
-
-	if config.Port != "9090" {
-		t.Errorf("Expected port 9090, got %s", config.Port)
-	}
-
-	if config.JSONFolderPath != "./custom-endpoints" {
-		t.Errorf("Expected JSON folder path ./custom-endpoints, got %s", config.JSONFolderPath)
-	}
+		// Check default values
+		if cfg.JSONFolderPath != "./endpoints" {
+			t.Errorf("Expected default JSONFolderPath to be ./endpoints, got %s", cfg.JSONFolderPath)
+		}
+		if cfg.Port != "8080" {
+			t.Errorf("Expected default Port to be 8080, got %s", cfg.Port)
+		}
+	})
 }

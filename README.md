@@ -52,19 +52,51 @@ Each JSON file in the specified folder represents a single endpoint. The filenam
 ### JSON File Format
 ```json
 {
-  "method": "GET",
-  "response": {
-    "status": 200,
-    "body": {
-      "key": "value"
+  "method": "POST",
+  "responses": [
+    {
+      "status": 201,
+      "body": {
+        "message": "User created successfully",
+        "user_id": 3
+      },
+      "input_body": {
+        "name": "John Doe",
+        "email": "john@example.com",
+        "role": "user"
+      },
+      "description": "Successfully creates a new user with valid input"
+    },
+    {
+      "status": 400,
+      "body": {
+        "error": "Invalid input",
+        "details": [
+          "Email is required",
+          "Name is required"
+        ]
+      },
+      "input_body": {
+        "role": "user"
+      },
+      "description": "Returns error when required fields are missing"
     }
-  }
+  ]
 }
 ```
 
 - `method`: HTTP method (GET, POST, PUT, DELETE, etc.)
-- `response.status`: HTTP status code
-- `response.body`: Response body (can be any valid JSON)
+- `responses`: Array of possible responses for the endpoint
+  - `status`: HTTP status code
+  - `body`: Response body (can be any valid JSON)
+  - `input_body`: (Optional) Expected request body to match this response
+  - `description`: (Optional) Description of when this response is returned
+
+### Response Selection
+The server selects the appropriate response based on:
+1. If the request has a body, it tries to match it with the `input_body` of responses
+2. If a match is found, that response is returned
+3. If no match is found or no body is provided, the first response in the array is returned
 
 ### Sample JSON Files
 
@@ -72,23 +104,36 @@ Each JSON file in the specified folder represents a single endpoint. The filenam
 ```json
 {
   "method": "GET",
-  "response": {
-    "status": 200,
-    "body": {
-      "users": [
-        {
-          "id": 1,
-          "name": "John Doe",
-          "email": "john@example.com"
-        },
-        {
-          "id": 2,
-          "name": "Jane Smith",
-          "email": "jane@example.com"
-        }
-      ]
+  "responses": [
+    {
+      "status": 200,
+      "body": {
+        "users": [
+          {
+            "id": 1,
+            "name": "John Doe",
+            "email": "john@example.com",
+            "role": "admin"
+          },
+          {
+            "id": 2,
+            "name": "Jane Smith",
+            "email": "jane@example.com",
+            "role": "user"
+          }
+        ]
+      },
+      "description": "Returns list of users when authenticated"
+    },
+    {
+      "status": 401,
+      "body": {
+        "error": "Unauthorized",
+        "message": "Authentication required"
+      },
+      "description": "Returns error when not authenticated"
     }
-  }
+  ]
 }
 ```
 
@@ -96,13 +141,35 @@ Each JSON file in the specified folder represents a single endpoint. The filenam
 ```json
 {
   "method": "POST",
-  "response": {
-    "status": 201,
-    "body": {
-      "message": "User created successfully",
-      "user_id": 3
+  "responses": [
+    {
+      "status": 201,
+      "body": {
+        "message": "User created successfully",
+        "user_id": 3
+      },
+      "input_body": {
+        "name": "John Doe",
+        "email": "john@example.com",
+        "role": "user"
+      },
+      "description": "Successfully creates a new user with valid input"
+    },
+    {
+      "status": 400,
+      "body": {
+        "error": "Invalid input",
+        "details": [
+          "Email is required",
+          "Name is required"
+        ]
+      },
+      "input_body": {
+        "role": "user"
+      },
+      "description": "Returns error when required fields are missing"
     }
-  }
+  ]
 }
 ```
 

@@ -1,118 +1,136 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/sachin-duhan/gomock/pkg/mock"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Server represents the mock server
 type Server struct {
-	mockResponses map[string]mock.Response
-	port          string
+	responses map[string]mock.Response
+	port      string
+	logger    *zap.Logger
 }
 
 // New creates a new mock server instance
-func New(mockResponses map[string]mock.Response, port string) *Server {
+func New(responses map[string]mock.Response, port string) (*Server, error) {
+	logger, err := initLogger()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize logger: %v", err)
+	}
+
 	return &Server{
-		mockResponses: mockResponses,
-		port:          port,
-	}
-}
-
-// handleMockRequest handles incoming API requests and returns mock responses
-func (s *Server) handleMockRequest(w http.ResponseWriter, r *http.Request) {
-	// Skip the endpoints listing route
-	if r.URL.Path == "/endpoints" {
-		return
-	}
-
-	// Find the mock response for the requested path
-	mockResponse, found := s.mockResponses[r.URL.Path]
-	if !found || mockResponse.Method != r.Method {
-		http.Error(w, "Not Found", http.StatusNotFound)
-		return
-	}
-
-	// Set the response status code and write the response body
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(mockResponse.Response.Status)
-	json.NewEncoder(w).Encode(mockResponse.Response.Body)
-}
-
-// handleEndpointsList returns a list of all available endpoints
-func (s *Server) handleEndpointsList(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Create a list of available endpoints with their methods, status codes, and sample curl commands
-	type EndpointInfo struct {
-		Method      string `json:"method"`
-		StatusCode  int    `json:"status_code"`
-		Description string `json:"description,omitempty"`
-		SampleCurl  string `json:"sample_curl"`
-	}
-
-	// Get the host from the request or use localhost with the server's port
-	host := r.Host
-	if host == "" {
-		host = "localhost:" + s.port
-	}
-
-	endpoints := make(map[string]EndpointInfo)
-	for path, mock := range s.mockResponses {
-		// Create a sample curl command based on the HTTP method
-		var curlCmd string
-		switch mock.Method {
-		case http.MethodGet:
-			curlCmd = fmt.Sprintf("curl -X GET http://%s%s", host, path)
-		case http.MethodPost:
-			curlCmd = fmt.Sprintf("curl -X POST -H \"Content-Type: application/json\" -d '{\"key\":\"value\"}' http://%s%s", host, path)
-		case http.MethodPut:
-			curlCmd = fmt.Sprintf("curl -X PUT -H \"Content-Type: application/json\" -d '{\"key\":\"value\"}' http://%s%s", host, path)
-		case http.MethodDelete:
-			curlCmd = fmt.Sprintf("curl -X DELETE http://%s%s", host, path)
-		default:
-			// Default to GET if method is not specified
-			curlCmd = fmt.Sprintf("curl -X GET http://%s%s", host, path)
-		}
-
-		endpoints[path] = EndpointInfo{
-			Method:     mock.Method,
-			StatusCode: mock.Response.Status,
-			SampleCurl: curlCmd,
-		}
-	}
-
-	// Add the endpoints listing endpoint itself
-	endpoints["/endpoints"] = EndpointInfo{
-		Method:      "GET",
-		StatusCode:  http.StatusOK,
-		Description: "Lists all available endpoints with their methods, status codes, and sample curl commands",
-		SampleCurl:  fmt.Sprintf("curl -X GET http://%s/endpoints", host),
-	}
-
-	// Return the list of endpoints as JSON
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":    "success",
-		"endpoints": endpoints,
-	})
+		responses: responses,
+		port:      port,
+		logger:    logger,
+	}, nil
 }
 
 // Start starts the mock server
 func (s *Server) Start() error {
 	// Set up server routes
-	http.HandleFunc("/endpoints", s.handleEndpointsList)
-	http.HandleFunc("/", s.handleMockRequest)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/endpoints", s.handleEndpointsList)
+	mux.HandleFunc("/", s.handleMockRequest)
 
 	// Start the server
-	log.Printf("Starting mock server on port %s...", s.port)
-	return http.ListenAndServe(":"+s.port, nil)
+	s.logger.Info("Starting mock server", zap.String("port", s.port))
+	return http.ListenAndServe(":"+s.port, s.logMiddleware(mux))
+}
+
+// initLogger initializes the zap logger based on environment variables
+func initLogger() (*zap.Logger, error) {
+	// Get log path from environment variable, default to "logs" directory
+	logPath := os.Getenv("LOG_PATH")
+	if logPath == "" {
+		logPath = "logs"
+	}
+
+	// Create logs directory if it doesn't exist
+	if err := os.MkdirAll(logPath, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create log directory: %v", err)
+	}
+
+	// Configure encoder
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoderConfig.TimeKey = "timestamp"
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+
+	// Create file core
+	logFile := filepath.Join(logPath, "mock-server.log")
+	file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open log file: %v", err)
+	}
+
+	fileCore := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		zapcore.AddSync(file),
+		zap.InfoLevel,
+	)
+
+	// Create console core for development
+	consoleCore := zapcore.NewCore(
+		zapcore.NewConsoleEncoder(encoderConfig),
+		zapcore.AddSync(os.Stdout),
+		zap.InfoLevel,
+	)
+
+	// Combine cores
+	core := zapcore.NewTee(fileCore, consoleCore)
+
+	// Create logger
+	logger := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zap.ErrorLevel))
+	return logger, nil
+}
+
+// logMiddleware logs incoming requests and their responses
+func (s *Server) logMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Create a response wrapper to capture the status code
+		rw := newResponseWriter(w)
+
+		// Log request details
+		s.logger.Info("Incoming request",
+			zap.String("method", r.Method),
+			zap.String("path", r.URL.Path),
+			zap.String("remote_addr", r.RemoteAddr),
+			zap.String("user_agent", r.UserAgent()),
+		)
+
+		// Process the request
+		start := time.Now()
+		next.ServeHTTP(rw, r)
+		duration := time.Since(start)
+
+		// Log response details
+		s.logger.Info("Request completed",
+			zap.String("method", r.Method),
+			zap.String("path", r.URL.Path),
+			zap.Int("status", rw.status),
+			zap.Duration("duration", duration),
+		)
+	})
+}
+
+// responseWriter wraps http.ResponseWriter to capture the status code
+type responseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func newResponseWriter(w http.ResponseWriter) *responseWriter {
+	return &responseWriter{ResponseWriter: w}
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.status = code
+	rw.ResponseWriter.WriteHeader(code)
 }

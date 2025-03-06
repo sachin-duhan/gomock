@@ -10,22 +10,24 @@ import (
 
 func main() {
 	// Load configuration
-	cfg := config.LoadConfig()
-
-	// Load mock responses from JSON files
-	mockResponses, err := mock.LoadResponses(cfg.JSONFolderPath)
+	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("Error loading mock responses: %v", err)
+		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Log loaded endpoints
-	log.Printf("Loaded %d mock endpoints", len(mockResponses))
-	for endpoint, mock := range mockResponses {
-		log.Printf("Endpoint: %s, Method: %s, Status: %d",
-			endpoint, mock.Method, mock.Response.Status)
+	// Load mock responses
+	mockResponses, err := mock.LoadResponses(cfg.JSONFolderPath)
+	if err != nil {
+		log.Fatalf("Failed to load mock responses: %v", err)
 	}
 
 	// Create and start the server
-	srv := server.New(mockResponses, cfg.Port)
-	log.Fatal(srv.Start())
+	srv, err := server.New(mockResponses, cfg.Port)
+	if err != nil {
+		log.Fatalf("Failed to create server: %v", err)
+	}
+
+	if err := srv.Start(); err != nil {
+		log.Fatalf("Server error: %v", err)
+	}
 }
