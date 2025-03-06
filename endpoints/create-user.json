@@ -1,10 +1,53 @@
 {
   "method": "POST",
-  "response": {
-    "status": 201,
-    "body": {
-      "message": "User created successfully",
-      "user_id": 3
+  "responses": [
+    {
+      "status": 201,
+      "body": {
+        "message": "User created successfully",
+        "user_id": 3
+      },
+      "input_body": {
+        "name": "John Doe",
+        "email": "john@example.com",
+        "role": "user"
+      },
+      "description": "Successfully creates a new user with valid input"
+    },
+    {
+      "status": 400,
+      "body": {
+        "error": "Invalid input",
+        "details": [
+          "Email is required",
+          "Name is required"
+        ]
+      },
+      "input_body": {
+        "role": "user"
+      },
+      "description": "Returns error when required fields are missing"
+    },
+    {
+      "status": 409,
+      "body": {
+        "error": "User already exists",
+        "details": "A user with this email already exists"
+      },
+      "input_body": {
+        "name": "John Doe",
+        "email": "existing@example.com",
+        "role": "user"
+      },
+      "description": "Returns error when trying to create a user with existing email"
+    },
+    {
+      "status": 201,
+      "body": {
+        "message": "User created successfully",
+        "user_id": 4
+      },
+      "description": "Default response when no specific input body matches"
     }
-  }
+  ]
 } 
