@@ -16,3 +16,6 @@
 
 #GoLang
 .idea
+
+coverage.out
+coverage.html

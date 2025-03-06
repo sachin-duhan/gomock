@@ -1,59 +1,181 @@
-# GoMock Server
+# Gomock
 
-![Logo](img/go_mock.png)
+## Project Overview
+This project implements a simple mock server in Go that reads mock responses from JSON files stored in a specified folder. The server responds to HTTP requests based on paths defined in the JSON files, making it a great tool for testing and simulating APIs during development. The folder path for the JSON files is configurable via environment variables.
 
-A simple mock server configurable via JSON, built using GoLang. Go gophers!
+## Features
+- **API Mocking**: Simulate API responses for testing and development purposes
+- **Response Simulation**: Read predefined responses from JSON files
+- **Environment-specific Configuration**: Configure folder paths and port through environment variables
+- **Endpoints Listing**: Built-in `/endpoints` route to list all available endpoints
+- **Modular Design**: Well-structured code for easy maintenance and extension
+- **Automated Testing**: Comprehensive test suite to ensure reliability
+- **CI/CD Integration**: GitHub Actions workflow for automated testing and building
 
+## Project Structure
+The project follows a modular structure:
+```
+gomock/
+├── main.go                 # Entry point
+├── pkg/
+│   ├── config/             # Configuration package
+│   │   ├── config.go
+│   │   └── config_test.go
+│   ├── mock/               # Mock response handling
+│   │   ├── mock.go
+│   │   └── mock_test.go
+│   └── server/             # HTTP server
+│       ├── server.go
+│       └── server_test.go
+├── endpoints/              # Mock response JSON files
+│   ├── users.json
+│   ├── user-details.json
+│   └── create-user.json
+└── ...
+```
 
-## Run it with Docker
+## Use Case
+- **API Mocking**: This mock server can be used to simulate API responses for testing and development purposes.
+- **Response Simulation**: The server reads predefined responses from JSON files, making it easy to simulate different API scenarios for various endpoints.
+- **Environment-specific Configuration**: The folder path for the JSON files can be defined through an environment variable, allowing for flexible configuration across different environments.
 
-Checkout the project with **git clone**.
-Assuming Docker is installed on your machine, run the following commands:
+## Configuration
+The server can be configured using environment variables:
+- `JSON_FOLDER_PATH`: Path to the folder containing JSON files (default: `./endpoints`)
+- `PORT`: Port on which the server will listen (default: `8080`)
 
-```bash
-docker-compose up -d
-````
+You can set these variables in a `.env` file or directly in your environment.
 
-Will build the image and run the container in PORT 8080 with the endpoints defined in `json_examples/endpoints.json`.
+## JSON File Structure
+Each JSON file in the specified folder represents a single endpoint. The filename (without extension) is used as the endpoint path. For example, a file named `users.json` will be mapped to the `/users` endpoint.
 
-## Run it locally
-
-Checkout the project with **git clone**.
-Assuming Go 1.19+ is installed on your machine, run the following commands:
-
-```bash
-export ENDPOINTS_FILE_PATH=json_examples/endpoints.json
-go run cmd/main.go 
-````
-
-Change the `ENDPOINTS_FILE_PATH` environment variable to point to your endpoints file.
-
-## How to create endpoints
-
-A file name `endpoint.json` must be placed in the context root, or in the `ENDPOINTS_FILE_PATH` environment variable
-with the following structure:
-
+### JSON File Format
 ```json
 {
-  "endpoints": [
-    {
-      "uri": "/test",
-      "response": {
-        "status_code": 200,
-        "body": "{ \"payload\": \"This is a response body!\" }"
-      }
+  "method": "GET",
+  "response": {
+    "status": 200,
+    "body": {
+      "key": "value"
     }
-  ]
+  }
 }
 ```
 
-As it stands you can match an endpoint, headers and request body and the server will return the configured response
-if a match is found.
+- `method`: HTTP method (GET, POST, PUT, DELETE, etc.)
+- `response.status`: HTTP status code
+- `response.body`: Response body (can be any valid JSON)
 
-## Run tests
+### Sample JSON Files
 
-Simply run on project root:
+1. **Example 1 - `users.json`**:
+```json
+{
+  "method": "GET",
+  "response": {
+    "status": 200,
+    "body": {
+      "users": [
+        {
+          "id": 1,
+          "name": "John Doe",
+          "email": "john@example.com"
+        },
+        {
+          "id": 2,
+          "name": "Jane Smith",
+          "email": "jane@example.com"
+        }
+      ]
+    }
+  }
+}
+```
+
+2. **Example 2 - `create-user.json`**:
+```json
+{
+  "method": "POST",
+  "response": {
+    "status": 201,
+    "body": {
+      "message": "User created successfully",
+      "user_id": 3
+    }
+  }
+}
+```
+
+## Endpoints
+The server provides the following built-in endpoints:
+- `/endpoints`: Lists all available endpoints with their methods, status codes, and sample curl commands
+
+## Example Endpoints Response
+```json
+{
+  "status": "success",
+  "endpoints": {
+    "/users": {
+      "method": "GET",
+      "status_code": 200,
+      "sample_curl": "curl -X GET http://localhost:8080/users"
+    },
+    "/create-user": {
+      "method": "POST",
+      "status_code": 201,
+      "sample_curl": "curl -X POST -H \"Content-Type: application/json\" -d '{\"key\":\"value\"}' http://localhost:8080/create-user"
+    },
+    "/endpoints": {
+      "method": "GET",
+      "status_code": 200,
+      "description": "Lists all available endpoints with their methods, status codes, and sample curl commands",
+      "sample_curl": "curl -X GET http://localhost:8080/endpoints"
+    }
+  }
+}
+```
+
+## Setup Commands
+
+1. Build the Docker image:
+   ```bash
+   docker build -t mock-server .
+   ```
+
+2. Run the Docker container:
+   ```bash
+   docker run -p 8080:8080 --env-file .env mock-server
+   ```
+
+## Running Locally
+1. Clone the repository
+2. Create a `.env` file with your configuration (or use the defaults)
+3. Run the server:
+   ```bash
+   go run main.go
+   ```
+
+## Example Usage
+1. Start the server
+2. Access the endpoints listing: `http://localhost:8080/endpoints`
+3. Access a mock endpoint: `http://localhost:8080/users`
+
+## Testing
+The project includes a comprehensive test suite to ensure reliability. To run the tests:
 
 ```bash
-go test ./test/...
+go test -v ./...
 ```
+
+The tests cover:
+- **Configuration**: Testing environment variable loading and defaults
+- **Mock Responses**: Testing loading and parsing of mock response files
+- **HTTP Server**: Testing request handling and response generation
+- **Integration**: Testing the integration of all components
+
+## CI/CD
+The project includes a GitHub Actions workflow that automatically runs tests and builds the application on push to the master branch. The workflow is defined in `.github/workflows/go.yml` and includes:
+
+- Running tests
+- Running linter
+- Building the application 

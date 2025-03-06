@@ -1,0 +1,17 @@
+{
+    "/users": {
+      "method": "GET",
+      "response": {
+        "status": 200,
+        "body": { "message": "User list" }
+      }
+    },
+    "/user/{id}": {
+      "method": "GET",
+      "response": {
+        "status": 200,
+        "body": { "message": "User details for id {id}" }
+      }
+    }
+  }
+  

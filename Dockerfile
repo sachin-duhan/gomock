@@ -1,29 +1,21 @@
-FROM golang:1.19-alpine AS build
+# Use the official Golang image as the base image
+FROM golang:1.20-alpine
 
-# Set up the work directory
+# Set the working directory in the container
 WORKDIR /app
 
-# Copy the Go module files
+# Copy the Go Modules and install dependencies
 COPY go.mod go.sum ./
+RUN go mod tidy
 
-# Download Go dependencies
-RUN go mod download
+# Copy the entire project
+COPY . .
 
-# Copy the application source code
-COPY pkg ./pkg
-COPY cmd ./cmd
+# Build the Go application
+RUN go build -o mock-server .
 
-# Build the application
-RUN go build -o /app/mock ./cmd/main.go
+# Expose port 8080 to access the server
+EXPOSE 8080
 
-# Use a minimal base image for the final container (is alpine still the best choice?)
-FROM alpine:latest
-
-# Copy the built executable from the build stage
-COPY --from=build /app/mock /app/mock
-
-# Set the working directory
-WORKDIR /app
-
-# Run the application
-CMD ["./mock"]
+# Run the server
+CMD ["./mock-server"]

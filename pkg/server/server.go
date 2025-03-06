@@ -1,61 +1,118 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
-	"io.analog.alex.mockserver/pkg/parser"
-	"io.analog.alex.mockserver/pkg/server/matchers"
 	"log"
 	"net/http"
+
+	"github.com/sachin-duhan/gomock/pkg/mock"
 )
 
-func RunServer(port string, endpoints []parser.Endpoint) {
-	for _, endpoint := range endpoints {
-		// build and bind the handler for each endpoint
-		http.HandleFunc(endpoint.Uri, createHandlerForEndpoint(endpoint))
-		log.Println("Registered route for: ", endpoint.Uri)
-	}
+// Server represents the mock server
+type Server struct {
+	mockResponses map[string]mock.Response
+	port          string
+}
 
-	if err := http.ListenAndServe(fmt.Sprintf("%s", port), nil /* nothing goes here */); err != nil {
-		log.Println(err)
-		panic(err)
+// New creates a new mock server instance
+func New(mockResponses map[string]mock.Response, port string) *Server {
+	return &Server{
+		mockResponses: mockResponses,
+		port:          port,
 	}
 }
 
-func createHandlerForEndpoint(endpoint parser.Endpoint) func(http.ResponseWriter, *http.Request) {
-	return func(writer http.ResponseWriter, request *http.Request) {
-
-		if endpoint.Request != nil {
-			// compare query params
-			if !matchers.AreMapsEqual(request.URL.Query(), endpoint.Request.QueryParams) {
-				err := fmt.Errorf("query params did not match. Expected %T got %T\n", endpoint.Request.QueryParams, request.URL.Query())
-				log.Println(err)
-				writer.WriteHeader(404)
-				return
-			}
-
-			// compare headers
-			if !matchers.IsMapASubset(request.Header, endpoint.Request.Headers) {
-				err := fmt.Errorf("headers did not match. Expected %T got %T\n", endpoint.Request.Headers, request.Header)
-				log.Println(err)
-				writer.WriteHeader(404)
-				return
-			}
-		}
-
-		// set Content-Type header
-		writer.Header().Set("Content-Type", "application/json")
-
-		// set the response status code BEFORE writing anything into the writer
-		writer.WriteHeader(endpoint.Response.StatusCode)
-
-		// output the body
-		_, err := fmt.Fprintf(writer, endpoint.Response.Body)
-		if err != nil {
-			log.Println(err)
-			writer.WriteHeader(500)
-			return
-		}
-
-		log.Printf("Handled request %s\n", request.URL)
+// handleMockRequest handles incoming API requests and returns mock responses
+func (s *Server) handleMockRequest(w http.ResponseWriter, r *http.Request) {
+	// Skip the endpoints listing route
+	if r.URL.Path == "/endpoints" {
+		return
 	}
+
+	// Find the mock response for the requested path
+	mockResponse, found := s.mockResponses[r.URL.Path]
+	if !found || mockResponse.Method != r.Method {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
+	}
+
+	// Set the response status code and write the response body
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(mockResponse.Response.Status)
+	json.NewEncoder(w).Encode(mockResponse.Response.Body)
+}
+
+// handleEndpointsList returns a list of all available endpoints
+func (s *Server) handleEndpointsList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Create a list of available endpoints with their methods, status codes, and sample curl commands
+	type EndpointInfo struct {
+		Method      string `json:"method"`
+		StatusCode  int    `json:"status_code"`
+		Description string `json:"description,omitempty"`
+		SampleCurl  string `json:"sample_curl"`
+	}
+
+	// Get the host from the request or use localhost with the server's port
+	host := r.Host
+	if host == "" {
+		host = "localhost:" + s.port
+	}
+
+	endpoints := make(map[string]EndpointInfo)
+	for path, mock := range s.mockResponses {
+		// Create a sample curl command based on the HTTP method
+		var curlCmd string
+		switch mock.Method {
+		case http.MethodGet:
+			curlCmd = fmt.Sprintf("curl -X GET http://%s%s", host, path)
+		case http.MethodPost:
+			curlCmd = fmt.Sprintf("curl -X POST -H \"Content-Type: application/json\" -d '{\"key\":\"value\"}' http://%s%s", host, path)
+		case http.MethodPut:
+			curlCmd = fmt.Sprintf("curl -X PUT -H \"Content-Type: application/json\" -d '{\"key\":\"value\"}' http://%s%s", host, path)
+		case http.MethodDelete:
+			curlCmd = fmt.Sprintf("curl -X DELETE http://%s%s", host, path)
+		default:
+			// Default to GET if method is not specified
+			curlCmd = fmt.Sprintf("curl -X GET http://%s%s", host, path)
+		}
+
+		endpoints[path] = EndpointInfo{
+			Method:     mock.Method,
+			StatusCode: mock.Response.Status,
+			SampleCurl: curlCmd,
+		}
+	}
+
+	// Add the endpoints listing endpoint itself
+	endpoints["/endpoints"] = EndpointInfo{
+		Method:      "GET",
+		StatusCode:  http.StatusOK,
+		Description: "Lists all available endpoints with their methods, status codes, and sample curl commands",
+		SampleCurl:  fmt.Sprintf("curl -X GET http://%s/endpoints", host),
+	}
+
+	// Return the list of endpoints as JSON
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":    "success",
+		"endpoints": endpoints,
+	})
+}
+
+// Start starts the mock server
+func (s *Server) Start() error {
+	// Set up server routes
+	http.HandleFunc("/endpoints", s.handleEndpointsList)
+	http.HandleFunc("/", s.handleMockRequest)
+
+	// Start the server
+	log.Printf("Starting mock server on port %s...", s.port)
+	return http.ListenAndServe(":"+s.port, nil)
 }

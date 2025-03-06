@@ -1,0 +1,10 @@
+{
+  "method": "POST",
+  "response": {
+    "status": 201,
+    "body": {
+      "message": "User created successfully",
+      "user_id": 3
+    }
+  }
+} 
