@@ -1,0 +1,13 @@
+services:
+  gomock:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - PORT=${PORT:-8080}
+      - JSON_FOLDER_PATH=/app/endpoints
+    volumes:
+      - ${MOCK_PATH:-./endpoints}:/app/endpoints
+    restart: unless-stopped 

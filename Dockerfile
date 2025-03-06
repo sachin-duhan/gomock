@@ -1,21 +1,36 @@
-# Use the official Golang image as the base image
-FROM golang:1.20-alpine
+FROM golang:1.24-alpine AS builder
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Copy the Go Modules and install dependencies
+# Copy go mod and sum files
 COPY go.mod go.sum ./
-RUN go mod tidy
 
-# Copy the entire project
+# Download dependencies
+RUN go mod download
+
+# Copy source code
 COPY . .
 
-# Build the Go application
-RUN go build -o mock-server .
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/gomock
 
-# Expose port 8080 to access the server
-EXPOSE 8080
+# Create a minimal production image
+FROM alpine:latest
 
-# Run the server
-CMD ["./mock-server"]
+WORKDIR /app
+
+# Copy the binary from builder
+COPY --from=builder /app/gomock .
+
+# Create directory for mock responses
+RUN mkdir -p /app/endpoints
+
+# Set default environment variables
+ENV PORT=8080
+ENV JSON_FOLDER_PATH=/app/endpoints
+
+# Expose the port
+EXPOSE ${PORT}
+
+# Command to run the application
+CMD ["./gomock"]
