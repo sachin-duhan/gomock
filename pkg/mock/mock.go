@@ -10,6 +10,7 @@ import (
 // Response represents a mock API response configuration
 type Response struct {
 	Method    string           `json:"method"`
+	Path      string           `json:"path,omitempty"`
 	Responses []ResponseConfig `json:"responses"`
 }
 
@@ -44,11 +45,15 @@ func LoadResponses(path string) (map[string]Response, error) {
 				return nil, err
 			}
 
-			// Extract the endpoint path from the filename (without extension)
-			endpoint := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
-			// If the endpoint doesn't start with /, add it
-			if !strings.HasPrefix(endpoint, "/") {
-				endpoint = "/" + endpoint
+			// Use the path from the JSON file if provided
+			// Otherwise extract the endpoint path from the filename
+			endpoint := mock.Path
+			if endpoint == "" {
+				endpoint = strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
+				// If the endpoint doesn't start with /, add it
+				if !strings.HasPrefix(endpoint, "/") {
+					endpoint = "/" + endpoint
+				}
 			}
 			mockResponses[endpoint] = mock
 		}

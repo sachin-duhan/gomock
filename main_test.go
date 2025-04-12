@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -26,6 +28,7 @@ func TestIntegration(t *testing.T) {
 	// Create test JSON files
 	usersJSON := `{
 		"method": "GET",
+		"path": "/users",
 		"responses": [
 			{
 				"status": 200,
@@ -37,6 +40,7 @@ func TestIntegration(t *testing.T) {
 
 	createUserJSON := `{
 		"method": "POST",
+		"path": "/create-user",
 		"responses": [
 			{
 				"status": 201,
@@ -55,34 +59,45 @@ func TestIntegration(t *testing.T) {
 		t.Fatalf("Failed to write create-user.json: %v", err)
 	}
 
-	// Set environment variables
+	// Set environment variables - use a different port to avoid conflicts
+	testPort := "8099"
 	os.Setenv("JSON_FOLDER_PATH", tempDir)
-	os.Setenv("PORT", "8081")
+	os.Setenv("PORT", testPort)
 	defer func() {
 		os.Unsetenv("JSON_FOLDER_PATH")
 		os.Unsetenv("PORT")
 	}()
 
-	// Start the server in a goroutine
-	go func() {
-		if err := run(); err != nil {
-			t.Errorf("Server error: %v", err)
+	// Start the server
+	srv, err := startTestServer()
+	if err != nil {
+		t.Fatalf("Failed to start server: %v", err)
+	}
+
+	// Make sure to shut down the server when the test is done
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := srv.Stop(ctx); err != nil {
+			t.Errorf("Error shutting down server: %v", err)
 		}
 	}()
 
 	// Wait for the server to start
-	time.Sleep(time.Second)
+	time.Sleep(1 * time.Second)
 
 	// Test GET /users
 	t.Run("GET /users", func(t *testing.T) {
-		resp, err := http.Get("http://localhost:8081/users")
+		resp, err := http.Get(fmt.Sprintf("http://localhost:%s/users", testPort))
 		if err != nil {
 			t.Fatalf("Failed to get users: %v", err)
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			t.Errorf("Expected status OK, got %v", resp.Status)
+			bodyBytes, _ := ioutil.ReadAll(resp.Body)
+			t.Errorf("Expected status OK, got %v with body: %s", resp.Status, string(bodyBytes))
+			return
 		}
 
 		var result map[string]interface{}
@@ -108,14 +123,16 @@ func TestIntegration(t *testing.T) {
 		}
 		jsonBody, _ := json.Marshal(body)
 
-		resp, err := http.Post("http://localhost:8081/create-user", "application/json", bytes.NewBuffer(jsonBody))
+		resp, err := http.Post(fmt.Sprintf("http://localhost:%s/create-user", testPort), "application/json", bytes.NewBuffer(jsonBody))
 		if err != nil {
 			t.Fatalf("Failed to create user: %v", err)
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusCreated {
-			t.Errorf("Expected status Created, got %v", resp.Status)
+			bodyBytes, _ := ioutil.ReadAll(resp.Body)
+			t.Errorf("Expected status Created, got %v with body: %s", resp.Status, string(bodyBytes))
+			return
 		}
 
 		var result map[string]interface{}
@@ -129,21 +146,29 @@ func TestIntegration(t *testing.T) {
 	})
 }
 
-func run() error {
+// startTestServer creates and starts a test server
+func startTestServer() (*server.Server, error) {
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to load config: %v", err)
 	}
 
 	mockResponses, err := mock.LoadResponses(cfg.JSONFolderPath)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to load responses: %v", err)
 	}
 
 	srv, err := server.New(mockResponses, cfg.Port)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to create server: %v", err)
 	}
 
-	return srv.Start()
+	// Start server in a goroutine
+	go func() {
+		if err := srv.Start(); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("Server error: %v\n", err)
+		}
+	}()
+
+	return srv, nil
 }

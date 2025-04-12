@@ -20,6 +20,7 @@ func TestLoadResponses(t *testing.T) {
 	testCases := []struct {
 		filename string
 		content  string
+		endpoint string
 		expected Response
 	}{
 		{
@@ -39,6 +40,7 @@ func TestLoadResponses(t *testing.T) {
 					}
 				]
 			}`,
+			endpoint: "/users",
 			expected: Response{
 				Method: "GET",
 				Responses: []ResponseConfig{
@@ -74,6 +76,7 @@ func TestLoadResponses(t *testing.T) {
 					}
 				]
 			}`,
+			endpoint: "/create-user",
 			expected: Response{
 				Method: "POST",
 				Responses: []ResponseConfig{
@@ -88,6 +91,34 @@ func TestLoadResponses(t *testing.T) {
 						Body:        map[string]interface{}{"error": "Invalid input"},
 						InputBody:   map[string]interface{}{"name": "Test User"},
 						Description: "Error response",
+					},
+				},
+			},
+		},
+		{
+			filename: "token.json",
+			content: `{
+				"method": "POST",
+				"path": "/api/auth/token",
+				"responses": [
+					{
+						"status": 200,
+						"body": {"token": "abc123"},
+						"input_body": {"client_id": "id", "api_key": "key"},
+						"description": "Success response"
+					}
+				]
+			}`,
+			endpoint: "/api/auth/token",
+			expected: Response{
+				Method: "POST",
+				Path:   "/api/auth/token",
+				Responses: []ResponseConfig{
+					{
+						Status:      200,
+						Body:        map[string]interface{}{"token": "abc123"},
+						InputBody:   map[string]interface{}{"client_id": "id", "api_key": "key"},
+						Description: "Success response",
 					},
 				},
 			},
@@ -114,29 +145,32 @@ func TestLoadResponses(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		endpoint := "/" + filepath.Base(tc.filename[:len(tc.filename)-len(filepath.Ext(tc.filename))])
-		mock, found := mockResponses[endpoint]
+		mock, found := mockResponses[tc.endpoint]
 		if !found {
-			t.Errorf("Expected mock response for endpoint %s not found", endpoint)
+			t.Errorf("Expected mock response for endpoint %s not found", tc.endpoint)
 			continue
 		}
 
 		if mock.Method != tc.expected.Method {
-			t.Errorf("For endpoint %s: expected method %s, got %s", endpoint, tc.expected.Method, mock.Method)
+			t.Errorf("For endpoint %s: expected method %s, got %s", tc.endpoint, tc.expected.Method, mock.Method)
+		}
+
+		if mock.Path != tc.expected.Path {
+			t.Errorf("For endpoint %s: expected path %s, got %s", tc.endpoint, tc.expected.Path, mock.Path)
 		}
 
 		if len(mock.Responses) != len(tc.expected.Responses) {
-			t.Errorf("For endpoint %s: expected %d responses, got %d", endpoint, len(tc.expected.Responses), len(mock.Responses))
+			t.Errorf("For endpoint %s: expected %d responses, got %d", tc.endpoint, len(tc.expected.Responses), len(mock.Responses))
 			continue
 		}
 
 		for i, resp := range mock.Responses {
 			expected := tc.expected.Responses[i]
 			if resp.Status != expected.Status {
-				t.Errorf("For endpoint %s, response %d: expected status %d, got %d", endpoint, i, expected.Status, resp.Status)
+				t.Errorf("For endpoint %s, response %d: expected status %d, got %d", tc.endpoint, i, expected.Status, resp.Status)
 			}
 			if resp.Description != expected.Description {
-				t.Errorf("For endpoint %s, response %d: expected description %s, got %s", endpoint, i, expected.Description, resp.Description)
+				t.Errorf("For endpoint %s, response %d: expected description %s, got %s", tc.endpoint, i, expected.Description, resp.Description)
 			}
 		}
 	}
