@@ -20,3 +20,5 @@
 coverage.out
 coverage.html
 logs/
+
+.env
