@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -17,6 +18,7 @@ type Server struct {
 	responses map[string]mock.Response
 	port      string
 	logger    *zap.Logger
+	server    *http.Server
 }
 
 // New creates a new mock server instance
@@ -40,9 +42,24 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/endpoints", s.handleEndpointsList)
 	mux.HandleFunc("/", s.handleMockRequest)
 
+	// Create HTTP server
+	s.server = &http.Server{
+		Addr:    ":" + s.port,
+		Handler: s.logMiddleware(mux),
+	}
+
 	// Start the server
 	s.logger.Info("Starting mock server", zap.String("port", s.port))
-	return http.ListenAndServe(":"+s.port, s.logMiddleware(mux))
+	return s.server.ListenAndServe()
+}
+
+// Stop gracefully shuts down the server
+func (s *Server) Stop(ctx context.Context) error {
+	if s.server != nil {
+		s.logger.Info("Shutting down server")
+		return s.server.Shutdown(ctx)
+	}
+	return nil
 }
 
 // initLogger initializes the zap logger based on environment variables

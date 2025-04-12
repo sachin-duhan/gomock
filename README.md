@@ -36,10 +36,16 @@ docker run -p 8080:8080 -v $(pwd)/yours-endpoints:/app/endpoints gomock
 - **Multiple Responses**: Support different responses based on input body or status code
 - **Status Code Override**: Use `x-stub-resStatus` header to force specific status codes
 - **Endpoints Discovery**: Built-in `/endpoints` route lists all available endpoints
+- **Custom Endpoint Paths**: Define explicit API paths in your JSON files
 
 ## JSON File Structure
 
-Each JSON file in your endpoints folder represents one endpoint. The filename becomes the endpoint path (e.g., `users.json` → `/users`).
+Each JSON file in your endpoints folder represents one endpoint. There are two ways to define the endpoint path:
+
+1. **Default**: The filename becomes the endpoint path (e.g., `users.json` → `/users`)
+2. **Custom**: Use the `path` property to explicitly define the endpoint path (e.g., `"path": "/api/v1/users"`)
+
+The `path` property is especially useful for complex API paths with multiple segments.
 
 ### Basic Example (GET endpoint)
 ```json
@@ -49,6 +55,20 @@ Each JSON file in your endpoints folder represents one endpoint. The filename be
     {
       "status": 200,
       "body": {"message": "Success"}
+    }
+  ]
+}
+```
+
+### Example with Custom Path
+```json
+{
+  "method": "POST",
+  "path": "/api/v1/auth/token",
+  "responses": [
+    {
+      "status": 200,
+      "body": {"token": "eyJ0eXAi..."}
     }
   ]
 }
@@ -83,7 +103,16 @@ Each JSON file in your endpoints folder represents one endpoint. The filename be
 }
 ```
 
+## Using the x-stub-resStatus Header
 
+You can force a specific status code response by using the `x-stub-resStatus` header:
+
+```bash
+# Force a 401 response for the /users endpoint
+curl -H "x-stub-resStatus: 401" http://localhost:8080/users
+```
+
+If the requested status code exists in the endpoint's responses, that response will be used. If not, it will fall back to the default response selection logic.
 
 ## Development
 
